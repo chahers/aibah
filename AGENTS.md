@@ -58,14 +58,89 @@ Stack: Next.js 16 (App Router, `src/app`) · React 19 · TypeScript · Tailwind 
 - `email_log` — to_email, template, subject, `status(queued|sent|failed)`, provider_ref, error
 - `analytics_events` — type(page_view|product_view|add_to_cart|purchase), session_token?, product_id?, order_id?, metadata (jsonb), created_at
 
-## Roadmap (acceptance checks)
+## Roadmap — phase-by-phase reference
 
-1. **Foundation** — Prisma install, local Postgres, full migration, seed → `prisma migrate dev` clean; Studio shows all 24 tables; `npm run build` green
-2. **Data layer** — `src/lib/db.ts` singleton + typed catalog/cart query helpers → pages render seeded catalog
-3. **Media** — upload route, `sharp` processing, `media` rows, `next/image` serving → responsive images with blur placeholders
-4. **Cart & checkout** — cookie cart, server actions, Stripe, transactional order creation → guest buys end-to-end; inventory decrements once; webhook replay is idempotent
-5. **Post-order** — emails (logged to `email_log`), `/orders/lookup` (number + email), shipment tracking records → guest checks status with number + email
-6. **Growth** — discounts UI/validation, review submission + moderation, analytics events
+Sequential phases. Status legend: **DONE** = implemented; **code-complete** = written + validated locally (typecheck/build) but not yet run in Docker elsewhere; **NEXT** = in progress; **PLANNED** = not started. Required external keys are called out per phase.
+
+### Phase 0 — Provisioning & toolchain (DONE)
+
+- **Decision**: runtime runs in Docker Compose; host (Windows, Node v24, npm 11) is tooling-only.
+- `docker-compose.yml` — 3 services: `db` (postgres:17-alpine, healthcheck, persistent `aibah_pgdata` volume, published `127.0.0.1:5432`), `web` (app; runs `prisma migrate deploy` + `prisma db seed` then `next start` on every container start, non-root `nextjs` user), `studio` (Prisma Studio on `127.0.0.1:5555`).
+- Multi-stage `Dockerfile` — `deps` (full install) → `proddeps` (`npm ci --omit=dev`) → `build` (`prisma generate` + `next build`, no DB needed at build time) → `runner`. `openssl` installed (Prisma engine requirement). Runtime `DATABASE_URL` points at the `db` service.
+- Prisma pinned to **7.10.0** (`prisma`, `@prisma/client`, `@prisma/adapter-pg`). Do not bump to 8.0.0-rc without re-verifying generator/config conventions.
+- `.env` / `.env.example` — `DATABASE_URL`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `RESEND_API_KEY`. Never commit real secrets.
+- package.json scripts: `dev`, `build`, `start`, `lint`, `typecheck`, `db:up`, `db:down`, `db:migrate`, `db:seed`, `db:studio`, `db:reset`.
+- Acceptance: `docker compose up --build` → db healthy; app on `http://localhost:3000`; Studio on `http://localhost:5555`; host-side `npm run dev` reaches Postgres on `127.0.0.1:5432`.
+
+### Phase 1 — Foundation: schema, migrations, seed, client (DONE, code-complete)
+
+- `prisma/schema.prisma` — all **24 models + 13 enums**; snake_case columns via `@map`/`@@map`; generator `prisma-client`, `output = "../src/generated/prisma"`.
+- `prisma.config.ts` — Prisma 7 style: `defineConfig` + `import "dotenv/config"` + `env("DATABASE_URL")` + `migrations.path` + `migrations.seed = "tsx prisma/seed.ts"`. **Prisma 7 requires a driver adapter at runtime** (`@prisma/adapter-pg`); no automatic `.env` loading (hence the explicit dotenv import).
+- `prisma/migrations/20260901000000_init/migration.sql` — generated via `prisma migrate diff --from-empty --to-schema prisma/schema.prisma --script -o`, then **custom SQL appended**: `order_number_seq` (start 10001) + CHECK constraints (`cart_items.quantity` 1–99; `order_items.quantity` >0; `product_variants.price_cents` and `stock_quantity` ≥0; `orders.total_cents`, `payments.amount_cents` ≥0; `refunds.amount_cents` >0). Never edit an applied migration — add new ones.
+- `prisma/seed.ts` — **fully idempotent** (deterministic UUIDs + upserts; safe on every container start): 4 categories, 6 products (options → values → variants, SKUs, stock, prices in cents, default variant), 1 `media` + `product_media` row per product (placeholder SVG in `/public/images`), `WELCOME10` percentage (1000 bps, min subtotal 5000, per-email limit 1), 2 approved reviews. Seed currency is `MYR` placeholder — change in the seed if needed.
+- `src/lib/db.ts` — Prisma singleton with `PrismaPg` adapter; cached on `globalThis` in dev (hot-reload safe).
+- Generated client `src/generated/` is **git-ignored** — regenerate via `npx prisma generate` (Docker builds do it automatically).
+- Acceptance: `prisma validate` + `npx prisma generate` clean; fresh DB → `prisma migrate deploy` + `prisma db seed` → 24 populated tables; `npx prisma studio` shows all tables; `npm run typecheck` + `npm run build` green.
+
+### Phase 2 — Data layer & catalog UI (NEXT)
+
+- **Before any code**: read the installed Next.js 16 docs in `node_modules/next/dist/docs/` (breaking changes — layouts/pages, params, image, caching/model). Do not rely on training data for Next 16.
+- Query helpers — keep business logic in reusable query modules, **not** in server actions or components (future admin UI will call the same helpers):
+  - `src/lib/queries/catalog.ts` — `listActiveProducts()`, `getProductBySlug(slug)` (include variants, option values, featured + gallery media, categories, approved reviews), `listCategories()`, `listProductsByCategory(slug)`.
+  - `src/lib/queries/cart.ts` — `getOrCreateCart(token)`, `getCartWithItems(token)` (variant + product snapshot), `addToCart`, `updateCartItem`, `removeCartItem`. Totals always integer cents.
+  - `src/lib/utils/money.ts` — cents ↔ formatted currency (seed placeholder `MYR`), `Intl.NumberFormat`.
+- Pages (server components rendering the seeded catalog):
+  - `/` — hero + product grid (featured media, name, price).
+  - `/products` — full listing, optional `?category=` filter.
+  - `/products/[slug]` — PDP: gallery, description, variant selectors (size/color), stock status, price. Add-to-cart is wired in Phase 4.
+  - Root layout + header/footer (nav from categories, cart link placeholder).
+- **Critical**: the Docker image builds WITHOUT a database → catalog pages must be dynamically rendered. Never run a Prisma query at static-generation/build time; use `export const dynamic = "force-dynamic"` on data pages (or fetch on request only). An accidental `findMany` during `next build` will fail the Docker build.
+- Acceptance: `/`, `/products`, `/products/[slug]` render seeded catalog data; typecheck + build green; pages still build inside the Docker image (no DB at build time).
+
+### Phase 3 — Media pipeline (PLANNED)
+
+- Upload route (admin-token protected, env-gated) → `sharp` processing → variants (webp/avif, responsive sizes) + tiny blur placeholder → bytes stored on disk/object storage (never in Postgres) and `blur_data_url` derived.
+- Write `media` row (url/key, type, width, height, blur_data_url, alt, size_bytes) + `product_media` rows (role `featured`/`gallery`, sort_order).
+- Serve via `next/image` — local `/images` if disk-backed, `remotePatterns` in `next.config.ts` if external storage.
+- Replace seeded SVG placeholders with real processed images on product pages.
+- Acceptance: upload → responsive images with blur-up; assets not stored in Postgres; `next/image` security config correct.
+
+### Phase 4 — Cart & checkout (PLANNED — needs Stripe keys)
+
+- Cart: httpOnly `cart_token` cookie (SameSite=Lax, 30 days); server actions add/update/remove + merge on existing token; `carts.expires_at` + periodic cleanup (cron/job) marks carts `abandoned`/`expired`; `cart_items` UNIQUE(cart_id, variant_id) merges rows; quantity CHECK 1–99.
+- Checkout flow (server actions, transactional):
+  1. Validate cart (stock, active variants, live prices) — snapshot prices at order time.
+  2. Create `orders` (`pending`) + `order_items` (snapshots) + `order_addresses` (shipping/billing) in **one transaction**; `guest_access_token` (crypto random, unique); `order_number` = `AIB-` + `nextval('order_number_seq')`.
+  3. Create Stripe PaymentIntent server-side (amount from DB, never client); `payments` row — `succeeded` only ever via webhook.
+- Stripe webhook `POST /api/webhooks/stripe`:
+  1. Verify signature with `stripe.webhooks.constructEvent`.
+  2. Idempotency: insert `webhook_events` (`event_id` UNIQUE) — a duplicate means "already processed", return 200.
+  3. On `payment_intent.succeeded`: mark order `paid` + payment `succeeded` + set `placed_at`; mark cart `converted`.
+  4. **Stock decrement inside the same transaction** via conditional update (`UPDATE product_variants SET stock_quantity = stock_quantity - n WHERE id = … AND stock_quantity >= n`) — fail loudly on insufficient stock. Order becomes `paid` ONLY via verified webhook, never via client redirect.
+- Errors recorded on `webhook_events.error`; provider retries are made idempotent by the UNIQUE `event_id`.
+- Acceptance: guest adds to cart → checkout → pays (Stripe test mode) → order `paid`, stock decremented exactly once, webhook replay (resending the same event) applies nothing twice. Requires `STRIPE_SECRET_KEY` + `STRIPE_WEBHOOK_SECRET` in `.env`.
+
+### Phase 5 — Post-order: emails + order lookup (PLANNED — needs Resend key)
+
+- Emails via Resend; every send logged to `email_log` (`queued` → `sent`/`failed`, provider_ref, subject, template). Templates: order confirmation/receipt (with view-order link via `guest_access_token`), shipping notification, delivery update.
+- `/orders/lookup` — form: order number + email → order status page (items, totals, addresses, payment, shipment). No auth — this IS the guest "account".
+- `/orders/[orderNumber]?t=<guest_access_token>` — tokenized deep link from email; never expose order data without the order number OR a valid token.
+- v1 fulfillment: `shipments` rows (carrier, tracking_number, status, shipped_at/delivered_at) updated via Prisma Studio.
+- Acceptance: guest receives receipt, follows the token link, checks status with number + email only. Requires `RESEND_API_KEY` in `.env`.
+
+### Phase 6 — Growth: discounts, reviews, analytics (PLANNED)
+
+- Discounts: apply at checkout — validate (active, `starts_at`/`ends_at`, `min_subtotal_cents`, `max_uses`, `per_email_limit`), compute `discount_cents` (percentage → basis points; fixed → cents; `free_shipping` → set shipping to 0), record a `discount_redemptions` row inside the order transaction, increment `used_count`. Codes stored UPPERCASE; UNIQUE(order_id, discount_code_id).
+- Reviews: submit (display_name, rating 1–5, body; optional images via `review_media`); status `pending` → `approved`/`rejected` (moderation via Prisma Studio in v1); verified purchase links `order_item_id`; approved reviews render on the PDP.
+- Analytics: log `analytics_events` rows (`page_view`, `product_view`, `add_to_cart`, `purchase`) with optional `session_token`, `product_id`, `order_id`, `metadata` JSONB; lightweight instrumentation (server actions/route handlers) — no external analytics dependency in v1.
+- Acceptance: discount applies once per order+email with all limits honored; reviews appear only after approval; `analytics_events` rows accumulate on the described events.
+
+### Using this roadmap
+
+- Status of each phase is kept current as work proceeds (DONE / code-complete / NEXT / PLANNED).
+- When starting a phase, read the relevant installed Next.js 16 docs first (`node_modules/next/dist/docs/`) — APIs in this version differ from training data.
+- Business logic belongs in `src/lib/queries/*` helpers so the future admin UI and server actions share it.
+- Milestones needing human keys: Phase 4 (Stripe test keys), Phase 5 (Resend API key).
 
 Non-goals for v1: no users/auth, no per-user address book, no wishlists, no multi-currency, no multi-warehouse inventory, no custom admin UI, no external search engine (Postgres queries first).
 
