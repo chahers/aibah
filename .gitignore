@@ -43,3 +43,6 @@ next-env.d.ts
 
 # prisma generated client (regenerate with `npx prisma generate`; Docker builds do it automatically)
 /src/generated
+
+# embedded local postgres (host-only dev aid; Docker volume aibah_pgdata is the canonical one)
+/.pgdata

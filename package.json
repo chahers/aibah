@@ -13,7 +13,11 @@
     "db:migrate": "prisma migrate deploy",
     "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
-    "db:reset": "prisma migrate reset --force && prisma db seed"
+    "db:reset": "prisma migrate reset --force && prisma db seed",
+    "db:embedded:start": "node scripts/db-embedded.mjs start",
+    "db:embedded:stop": "node scripts/db-embedded.mjs stop",
+    "db:embedded:status": "node scripts/db-embedded.mjs status",
+    "db:embedded:verify": "node scripts/db-embedded.mjs verify"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.0",
@@ -32,6 +36,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "babel-plugin-react-compiler": "1.0.0",
+    "embedded-postgres": "^18.4.0-beta.17",
     "eslint": "^9",
     "eslint-config-next": "16.3.3",
     "tailwindcss": "^4",

@@ -156,3 +156,41 @@ Non-goals for v1: no users/auth, no per-user address book, no wishlists, no mult
 - Host machine: Windows; Node v24, npm 11 — host tooling only; all runtime deps ship inside the image.
 - After a fresh host-side clone + `npm install`, run `npx prisma generate` once before `npm run dev` / `npm run typecheck` (`src/generated` is git-ignored; Docker builds generate automatically).
 - Secrets via `.env` (never commit): `DATABASE_URL`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `RESEND_API_KEY`.
+
+## Commands (current — what is set up now)
+
+### Database & Prisma
+
+| Command | What it does |
+|---|---|
+| `npm run db:up` | (Docker) `docker compose up -d --build` — full stack: Postgres 17 + web + Studio |
+| `npm run db:down` | (Docker) `docker compose down` — stop containers (volume persists) |
+| `npm run db:embedded:start` | Boot embedded Postgres locally at `127.0.0.1:5432` (creates `.pgdata/` + `aibah` DB on first run). No Docker/admin needed. ⚠️ Keeps the terminal occupied while running. |
+| `npm run db:embedded:stop` | Stop embedded Postgres (data persists in `.pgdata/`) |
+| `npm run db:embedded:status` | Check if embedded Postgres is running |
+| `npm run db:embedded:verify` | List all tables in `aibah` + row counts |
+| `npx prisma migrate deploy` | Apply pending migrations to the DB pointed at by `DATABASE_URL` |
+| `npx prisma migrate dev` | Dev workflow: create + apply new migration from schema changes (needs shadow DB) |
+| `npx prisma generate` | Regenerate the typed client into `src/generated/prisma` (git-ignored; required after `npm install` on a fresh clone) |
+| `npx prisma validate` | Validate `schema.prisma` + `prisma.config.ts` |
+| `npm run db:seed` | `prisma db seed` — idempotent seed (deterministic UUIDs + upserts; safe to re-run) |
+| `npm run db:studio` | Open Prisma Studio GUI at `http://localhost:5555` (v1 admin) |
+| `npm run db:reset` | Drop + re-apply migrations + seed (`--force`; only for dev) |
+| `npx prisma migrate diff --from-empty --to-schema prisma/schema.prisma --script -o <path>` | Regenerate initial migration SQL (Prisma 7 syntax) |
+
+### Frontend (Next.js 16, App Router)
+
+| Command | What it does |
+|---|---|
+| `npm run dev` | Start dev server (`next dev`) — hot reload, reads `.env` |
+| `npm run build` | Production build (`next build`) — must pass with **no DB connection** (catalog pages are dynamic) |
+| `npm run start` | Serve the production build (`next start`) — what the Docker `web` service runs |
+| `npm run lint` | ESLint over the codebase |
+| `npm run typecheck` | `tsc --noEmit` over all TS/TSX (includes generated Prisma client) |
+
+### Backend (what exists today)
+
+- There is **no separate backend service** — the "backend" is Next.js itself: **Server Components** (pages) + **Server Actions** (mutations, Phase 4+) + **Route Handlers** (`/api/*`, webhook in Phase 4). Future phases add `src/app/api/webhooks/stripe`, cart/checkout server actions, and `/orders/*`.
+- DB access layer (exists now): `src/lib/db.ts` (Prisma singleton) — import `{ prisma }` from it; generated client at `src/generated/prisma/`.
+- Business-logic query helpers land in `src/lib/queries/*` in **Phase 2** (catalog + cart) — server actions and the future admin share these; do not put queries in components/actions directly.
+- No server-side tests/runner configured yet.
