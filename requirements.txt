@@ -1,0 +1,34 @@
+# ---------------------------------------------------------------------------
+# aibah - Python requirements (host-side tooling only)
+# ---------------------------------------------------------------------------
+#
+# This repo is a Node/TypeScript project. Nothing Python runs in the app, the
+# seed, the tests or the Docker image:
+#   * root      -> Next.js 16 app (App Router pages + API + Prisma); deps live
+#                  in package.json / package-lock.json
+#   * frontend/ -> Vite 6 + React 18 storefront prototype; deps live in
+#                  frontend/package.json
+#
+# Keep this file for OPTIONAL host helpers that sit outside the shipped app
+# (image/asset preparation, one-off database or ops scripts, data exports).
+# `docker compose up --build` never installs anything from here.
+#
+# Setup (Windows PowerShell, run from the repo root):
+#   python -m venv .venv
+#   .\.venv\Scripts\Activate.ps1
+#   python -m pip install --upgrade pip
+#   pip install -r requirements.txt
+#
+# Conventions
+#   * Interpreter verified in this workspace: Python 3.14.7 (.venv, 2026-09-30)
+#   * .venv/ is git-ignored - never commit it
+#   * Add an entry ONLY when a script in this repo actually imports it, and pin
+#     it with `==` so runs are reproducible
+#   * Regenerate a pinned list with:  pip freeze > requirements.txt
+#
+# ---------------------------------------------------------------------------
+# Requirements
+# ---------------------------------------------------------------------------
+#
+# (none yet - this workspace currently contains no Python code)
+#
