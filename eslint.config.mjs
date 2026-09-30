@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // standalone Vite storefront prototype (frontend/) — has its own toolchain
+    "frontend/**",
   ]),
 ]);
 

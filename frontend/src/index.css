@@ -1,0 +1,48 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-serif: "Libre Caslon Text", "Iowan Old Style", Georgia, serif;
+  --color-ink: #000000;
+  --color-ash: #d6d6d6;
+  --color-coral: #ffa08a;
+  --color-oxblood: #5c1510;
+  --color-blush: #ffc9c0;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply bg-white font-sans text-ink antialiased;
+  }
+  :focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: 3px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+/* Tight, heavy display type used for the big shop headline */
+.display-tight {
+  letter-spacing: -0.06em;
+  line-height: 0.86;
+}
+
+.fabric-bg {
+  background-color: #6f6f6f;
+  background-image: url("/images/fabric.webp");
+  background-size: cover;
+  background-position: center;
+}

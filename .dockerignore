@@ -5,6 +5,11 @@ node_modules
 .env.*
 !.env.example
 npm-debug.log*
+*.tsbuildinfo
+# standalone Vite storefront prototype — never part of the Next.js image
+frontend
+# embedded local postgres cluster (host-only dev aid)
+.pgdata
 .vercel
 *.md
 Dockerfile

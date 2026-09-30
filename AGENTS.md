@@ -150,6 +150,16 @@ Non-goals for v1: no users/auth, no per-user address book, no wishlists, no mult
 - **Later (clean migrations, no rework)**: `admin_users` + `sessions` (separate from any future customer `users`), `audit_log` (actor, action, entity, diff), `inventory_movements` ledger, `store_settings` key/value, then RBAC only if staff grows.
 - Bridge: Prisma Studio + Stripe Dashboard covers v1 operations.
 
+## Repo layout
+
+- **Root = the Next.js 16 app** (App Router pages, API route handlers, Prisma, Docker). Every command in the Commands section below is run from the repo root.
+- **`frontend/` = standalone storefront prototype**: Vite 6 + React 18 + React Router 6 + Tailwind 4 with its own `package.json` / `node_modules`. Pages are `/`, `/shop`, `/product/:handle`, `/about`, `/faq` (+ placeholder routes); all data is hard-coded in `frontend/src/data/products.ts` — it does **not** call this app's APIs yet.
+  - It is deliberately excluded from root tooling: `tsconfig.json` `exclude`, `eslint.config.mjs` `globalIgnores`, and `.dockerignore` (it must never enter the Docker build context or the production image).
+  - Use its own toolchain from inside the folder: `npm install`, `npm run dev` (port 5173), `npm run typecheck`, `npm run build`.
+  - The real product photography lives in `frontend/public/images/*.webp`; root `public/images/*.svg` are seed placeholders.
+- **Open decision (not settled)**: whether the Vite SPA becomes the production storefront (making this app API/webhook-only) or whether its JSX + Tailwind tokens are ported into Next App Router pages as Phase 2 describes. Until that is decided, Phase 2 renders the catalog from the Next app and `frontend/` stays reference/design work.
+
+
 ## Environment notes
 
 - **Runtime = Docker Compose** (decided at Phase 0): `docker compose up --build` starts Postgres 17 (with healthcheck + persistent `aibah_pgdata` volume), the web app (auto `prisma migrate deploy` + idempotent seed on every start, non-root user), and Prisma Studio on port 5555. Postgres is published on `127.0.0.1:5432` so host-side `npm run dev` / `npm run db:studio` reach it via localhost.

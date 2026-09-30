@@ -1,7 +1,7 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
-# dependencies
-/node_modules
+# dependencies (unanchored so sub-projects like frontend/ are covered too)
+node_modules/
 /.pnp
 .pnp.*
 .yarn/*
@@ -46,3 +46,16 @@ next-env.d.ts
 
 # embedded local postgres (host-only dev aid; Docker volume aibah_pgdata is the canonical one)
 /.pgdata
+
+# repo-wide ignores (unanchored: these also cover sub-projects such as frontend/)
+
+# python tooling leftovers
+.venv/
+__pycache__/
+
+# bundler / build output
+dist/
+
+# logs
+*.log
+
