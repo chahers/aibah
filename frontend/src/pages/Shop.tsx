@@ -17,7 +17,7 @@ function ShopRow({ product }: { product: Product }) {
         <h2 className="display-tight mt-6 text-5xl font-extrabold text-neutral-300 sm:text-6xl md:text-7xl">BANGKIT.</h2>
         <Link
           to={productPath(product)}
-          className={`mt-5 block max-w-md rounded-full py-4 text-center text-base text-white transition-opacity hover:opacity-90 ${soldOut ? 'bg-coral' : 'bg-black'}`}
+          className={`mt-5 block max-w-md rounded-full py-4 text-center text-base text-white transition-opacity hover:opacity-90 ${soldOut ? 'bg-dustyblue' : 'bg-black'}`}
         >
           {soldOut ? 'Sold out' : 'View product'}
         </Link>

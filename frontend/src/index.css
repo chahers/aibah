@@ -5,9 +5,9 @@
   --font-serif: "Libre Caslon Text", "Iowan Old Style", Georgia, serif;
   --color-ink: #000000;
   --color-ash: #d6d6d6;
-  --color-coral: #ffa08a;
-  --color-oxblood: #5c1510;
-  --color-blush: #ffc9c0;
+  --color-dustyblue: #5a86ad;
+  --color-smoke: #3b5369;
+  --color-sky: #96b9d9;
 }
 
 @layer base {

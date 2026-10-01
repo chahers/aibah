@@ -50,7 +50,7 @@ export default function About() {
         image="/images/about-2.webp"
         alt="Woman in a black BANGKIT. tee looking up at the Kuala Lumpur skyline"
         overlay="What We Believe."
-        overlayClass="left-[8%] top-[46%]"
+        overlayClass="left-[12%] top-[38%]"
       >
         <h2 className="font-serif text-3xl font-bold uppercase">Growth is a choice.</h2>
         <p className="mt-4 text-lg leading-relaxed">
